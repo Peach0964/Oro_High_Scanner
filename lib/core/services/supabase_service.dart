@@ -109,8 +109,9 @@ class SupabaseService {
         'scan_type': scanType,
         'scanned_at': (scannedAt ?? DateTime.now()).toIso8601String(),
       });
-    } catch (_) {
-      // swallow errors to avoid breaking UX during offline scenarios
+    } catch (e) {
+      // Don't swallow errors. Let the caller handle them to provide user feedback.
+      rethrow;
     }
   }
 
@@ -153,13 +154,13 @@ class SupabaseService {
   }
 
   /// Fetch students from Supabase to power multiple screens.
-  /// Expected table: public.users with columns:
+  /// Expected table: public.students with columns:
   ///   lrn (text), full_name (text), and other optional fields.
   /// Fallback: if 'students' table is missing or query fails, returns [].
   static Future<List<Map<String, dynamic>>> fetchStudents() async {
     if (!isConfigured) return [];
     try {
-      final rows = await client.from('users').select('*').limit(1000);
+      final rows = await client.from('students').select('*').limit(1000);
       if (rows is List) {
         return rows.cast<Map<String, dynamic>>();
       }
@@ -175,10 +176,10 @@ class SupabaseService {
       String studentId) async {
     if (!isConfigured) return null;
 
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    final now = DateTime.now().toUtc();
+    final startOfDay = DateTime.utc(now.year, now.month, now.day).toIso8601String();
     final endOfDay =
-        DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
+        DateTime.utc(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
 
     try {
       final data = await client
@@ -205,27 +206,101 @@ class SupabaseService {
     }
   }
 
-  /// Get a single student by LRN from Supabase.users
-  static Future<Map<String, dynamic>?> getStudentById(String id) async {
+  /// Get a single user by their ID, checking both students and teachers tables.
+  static Future<Map<String, dynamic>?> getUserById(String id) async {
     if (!isConfigured) return null;
     try {
-      // This is a robust query to handle multiple scenarios:
-      // 1. Trims whitespace from the scanned ID.
-      // 2. Uses .or() to check for the LRN as both a string and a number.
-      // This solves issues with leading zeros if the DB column is numeric,
-      // and works perfectly if the column is text.
       final trimmedId = id.trim();
-      final numValue = int.tryParse(trimmedId);
 
-      final data = await client
-          .from('users')
+      // 1. Check for the user in the students table first.
+      final studentData = await client
+          .from('students_scanner')
           .select('*')
-          .or('lrn.eq.$trimmedId,lrn.eq.$numValue')
+          .eq('lrn', trimmedId)
           .maybeSingle();
-      return data;
+
+      if (studentData != null) {
+        return studentData; // Found a student, return their data.
+      }
+
+      // 2. If not found, check for the user in the teachers table.
+      final teacherData = await client
+          .from('teachers')
+          .select('employee_id, first_name, middle_name, last_name')
+          .eq('employee_id', trimmedId)
+          .maybeSingle();
+
+      if (teacherData != null) {
+        // Standardize the teacher data to match the student format for the UI.
+        final firstName = teacherData['first_name'] ?? '';
+        final middleName = teacherData['middle_name'] ?? '';
+        final lastName = teacherData['last_name'] ?? '';
+        final fullName = [firstName, middleName, lastName]
+            .where((name) => name.isNotEmpty)
+            .join(' ');
+
+        return {
+          'lrn': teacherData['employee_id'], // Map 'employee_id' to 'lrn'
+          'full_name': fullName,
+        };
+      }
+
+      return null; // User not found in either table.
     } catch (_) {
-      // Gracefully return null if the query fails for any reason (e.g., no network)
       return null;
+    }
+  }
+
+  /// Search for users across both 'students_scanner' and 'teachers' tables.
+  static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    if (!isConfigured || query.isEmpty) return [];
+    try {
+      // Define the two search futures to run in parallel.
+      final searchFutures = [
+        // Search students
+        client
+            .from('students_scanner')
+            .select('lrn, full_name')
+            .ilike('full_name', '%$query%')
+            .limit(10),
+
+        // Search teachers and standardize the data structure
+        client
+            .from('teachers')
+            .select('employee_id, first_name, middle_name, last_name') // Use correct teacher columns
+            // Search across first, middle, and last names
+            .or('first_name.ilike.%$query%,middle_name.ilike.%$query%,last_name.ilike.%$query%')
+            .limit(10)
+            .then((teacherData) {
+          // Map teacher data to the consistent format used by the UI.
+          return teacherData.map((teacher) {
+            // Combine name parts into a single full name string.
+            final firstName = teacher['first_name'] ?? '';
+            final middleName = teacher['middle_name'] ?? '';
+            final lastName = teacher['last_name'] ?? '';
+            final fullName = [firstName, middleName, lastName]
+                .where((name) => name.isNotEmpty)
+                .join(' ');
+
+            return {
+              'lrn': teacher['employee_id'], // Map 'employee_id' to 'lrn'
+              'full_name': fullName,
+            };
+          }).toList();
+        }),
+      ];
+
+      // Wait for both searches to complete.
+      final results = await Future.wait(searchFutures);
+
+      // Combine the results from both lists and sort them by name.
+      final combinedList = results.expand((list) => list).toList();
+      combinedList.sort((a, b) => (a['full_name'] as String).compareTo(b['full_name'] as String));
+
+      return combinedList;
+    } catch (_) {
+      // If any search fails (e.g., table doesn't exist), return an empty list.
+      return [];
     }
   }
 }

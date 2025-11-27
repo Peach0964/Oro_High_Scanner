@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/theme_service.dart';
 import '../../widgets/common/app_drawer.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -7,347 +8,373 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = ThemeService().isDarkMode;
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Settings',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
         actions: const [
           TopActions(
             currentRoute: '/settings',
           ),
         ],
       ),
-      floatingActionButton: FloatingNavMenu(currentRoute: '/settings'),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 20),
         children: [
-          // Header section similar to scanner screen
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: AppColors.primary.withValues(alpha: 0.1),
+          // Header Section
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Application Settings',
+                  'Preferences',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: theme.colorScheme.onSurface,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  'Configure your scanning preferences',
+                  'Manage your app settings and configurations.',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textMedium,
+                    fontSize: 15,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 8),
+          // General Section
+          _SettingsSection(
+            title: 'GENERAL',
+            children: [
+              ListenableBuilder(
+                listenable: ThemeService(),
+                builder: (context, _) {
+                  return _SettingsTile.switchTile(
+                    title: 'Dark Mode',
+                    icon: Icons.dark_mode_rounded,
+                    iconColor: Colors.purple,
+                    value: ThemeService().isDarkMode,
+                    onChanged: (v) {
+                      ThemeService().toggleTheme();
+                    },
+                  );
+                },
+              ),
+              _SettingsTile.switchTile(
+                title: 'Sound on Scan',
+                icon: Icons.volume_up_rounded,
+                iconColor: Colors.blue,
+                value: true,
+                onChanged: (v) {},
+              ),
+            ],
+          ),
 
-          // Settings content
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const _SectionHeader('General'),
-                _SwitchTile(
-                  title: 'Dark Mode',
-                  subtitle: 'Use dark theme (coming soon)',
-                  value: false,
-                  onChanged: (v) {},
-                ),
-                _SwitchTile(
-                  title: 'Sound on Scan',
-                  subtitle: 'Play a confirmation sound after scanning',
-                  value: true,
-                  onChanged: (v) {},
-                ),
-                const SizedBox(height: 16),
-                const _SectionHeader('Scanner'),
-                _DropdownTile(
-                  title: 'Default Action',
-                  subtitle: 'Mark as Time-in or Time-out by default',
-                  value: 'Auto-detect',
-                  items: const [
-                    'Auto-detect',
-                    'Always Time-in',
-                    'Always Time-out'
-                  ],
-                  onChanged: (v) {},
-                ),
-                _DropdownTile(
-                  title: 'Duplicate Scan Window',
-                  subtitle: 'Ignore same ID within this time window',
-                  value: '10 seconds',
-                  items: const [
-                    '5 seconds',
-                    '10 seconds',
-                    '30 seconds',
-                    '1 minute'
-                  ],
-                  onChanged: (v) {},
-                ),
-                const SizedBox(height: 16),
-                const _SectionHeader('Data'),
-                _SwitchTile(
-                  title: 'Auto-sync',
-                  subtitle: 'Automatically sync data to cloud',
-                  value: true,
-                  onChanged: (v) {},
-                ),
-                _SwitchTile(
-                  title: 'Keep Records',
-                  subtitle: 'Store scan history locally',
-                  value: true,
-                  onChanged: (v) {},
-                ),
-                const SizedBox(height: 16),
-                const _SectionHeader('Account'),
-                _ActionTile(
-                  title: 'Logout',
-                  subtitle: 'Sign out from your account',
-                  icon: Icons.logout,
-                  onTap: () async {
-                    try {
-                      // Simple logout - just navigate back to login
-                      if (context.mounted) {
-                        Navigator.of(context)
-                            .pushNamedAndRemoveUntil('/', (route) => false);
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Logout failed: ${e.toString()}'),
-                            backgroundColor: AppColors.error,
-                          ),
-                        );
-                      }
+          // Scanner Section
+          _SettingsSection(
+            title: 'SCANNER',
+            children: [
+              _SettingsTile.navigation(
+                title: 'Default Action',
+                subtitle: 'Auto-detect',
+                icon: Icons.touch_app_rounded,
+                iconColor: Colors.orange,
+                onTap: () {
+                  // TODO: Show action picker
+                },
+              ),
+              _SettingsTile.navigation(
+                title: 'Duplicate Scan Window',
+                subtitle: '10 seconds',
+                icon: Icons.timer_rounded,
+                iconColor: Colors.teal,
+                onTap: () {
+                  // TODO: Show duration picker
+                },
+              ),
+            ],
+          ),
+
+          // Data Section
+          _SettingsSection(
+            title: 'DATA & SYNC',
+            children: [
+              _SettingsTile.switchTile(
+                title: 'Auto-sync',
+                icon: Icons.cloud_sync_rounded,
+                iconColor: Colors.indigo,
+                value: true,
+                onChanged: (v) {},
+              ),
+              _SettingsTile.switchTile(
+                title: 'Keep Records',
+                icon: Icons.history_rounded,
+                iconColor: Colors.green,
+                value: true,
+                onChanged: (v) {},
+              ),
+            ],
+          ),
+
+          // Account Section
+          _SettingsSection(
+            title: 'ACCOUNT',
+            children: [
+              _SettingsTile.action(
+                title: 'Log Out',
+                icon: Icons.logout_rounded,
+                iconColor: Colors.red,
+                textColor: Colors.red,
+                onTap: () async {
+                  try {
+                    if (context.mounted) {
+                      Navigator.of(context)
+                          .pushNamedAndRemoveUntil('/', (route) => false);
                     }
-                  },
-                ),
-              ],
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Logout failed: ${e.toString()}'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 40),
+          Center(
+            child: Text(
+              'Version 1.0.0',
+              style: TextStyle(
+                color: isDark ? Colors.grey[600] : Colors.grey[400],
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 }
 
-class _ActionTile extends StatelessWidget {
+class _SettingsSection extends StatelessWidget {
   final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
+  final List<Widget> children;
 
-  const _ActionTile({
+  const _SettingsSection({
     required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
+    required this.children,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, color: AppColors.primary),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textMedium,
-                      ),
-                    ),
-                  ],
-                ),
+    final isDark = ThemeService().isDarkMode;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            title,
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-              Icon(Icons.chevron_right, color: AppColors.textLight),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i < children.length - 1)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 56),
+                    child: Divider(
+                      height: 1,
+                      color: isDark
+                          ? Colors.grey.withValues(alpha: 0.2)
+                          : Colors.grey.withValues(alpha: 0.1),
+                    ),
+                  ),
+              ],
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _SettingsTile extends StatelessWidget {
   final String title;
-  const _SectionHeader(this.title);
+  final String? subtitle;
+  final IconData icon;
+  final Color iconColor;
+  final Color? textColor;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: AppColors.textMedium,
-          fontWeight: FontWeight.w700,
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
-}
-
-class _SwitchTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _SwitchTile({
+  const _SettingsTile._({
     required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
+    this.subtitle,
+    required this.icon,
+    required this.iconColor,
+    this.textColor,
+    this.trailing,
+    this.onTap,
   });
 
+  factory _SettingsTile.switchTile({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return _SettingsTile._(
+      title: title,
+      icon: icon,
+      iconColor: iconColor,
+      trailing: Switch.adaptive(
+        value: value,
+        onChanged: onChanged,
+        activeColor: AppColors.accent,
+      ),
+    );
+  }
+
+  factory _SettingsTile.navigation({
+    required String title,
+    String? subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return _SettingsTile._(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      iconColor: iconColor,
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: Colors.grey[400],
+        size: 20,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  factory _SettingsTile.action({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    Color? textColor,
+    required VoidCallback onTap,
+  }) {
+    return _SettingsTile._(
+      title: title,
+      icon: icon,
+      iconColor: iconColor,
+      textColor: textColor,
+      onTap: onTap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+    final theme = Theme.of(context);
+    final isDark = ThemeService().isDarkMode;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
                     style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textMedium,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: textColor ?? theme.colorScheme.onSurface,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.grey[500] : Colors.grey[500],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: AppColors.primary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DropdownTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String value;
-  final List<String> items;
-  final ValueChanged<String?> onChanged;
-
-  const _DropdownTile({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textMedium,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: DropdownButton<String>(
-                value: value,
-                onChanged: onChanged,
-                isExpanded: true,
-                underline: const SizedBox(),
-                items: items
-                    .map((e) => DropdownMenuItem<String>(
-                          value: e,
-                          child: Text(e),
-                        ))
-                    .toList(),
-              ),
-            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 12),
+              trailing!,
+            ],
           ],
         ),
       ),
